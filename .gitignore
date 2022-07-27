@@ -1,0 +1,5 @@
+target/
+build/
+.vscode/
+# The pictures folder can stay local and be sent from machine to machine compressed.
+phone-screenshots/
