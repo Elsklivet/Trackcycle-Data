@@ -20,14 +20,17 @@ args = None
 debug = False
 
 class Log():
-    def error(msg: str) -> None:
-        termcolor.cprint(f"ERROR: {msg}", 'red')
-
-    def warning(msg: str) -> None:
-        termcolor.cprint(f"WARNING: {msg}", 'yellow')
-        
-    def info(msg: str) -> None:
-        print(f"INFO: {msg}")
+    def error(msg: str):
+        level = termcolor.colored(f"ERROR", 'red')
+        print(f"[ {level} ] {msg}")
+    def warning(msg: str):
+        level = termcolor.colored(f"WARNING", 'yellow')
+        print(f"[ {level} ] {msg}")
+    def ok(msg: str):
+        level = termcolor.colored(f"OK", 'green')
+        print(f"[ {level} ] {msg}")
+    def info(msg: str):
+        print(f"[ INFO ] {msg}")
 
 def parse_line(line: str, idx: int) -> dict:
     if line.startswith("--"):
@@ -132,7 +135,7 @@ def main():
 
     end = time.time()
         
-    termcolor.cprint(f"FINISHED PARSING IN {end-start} s", 'green')
+    Log.ok(f"FINISHED PARSING IN {end-start} s")
 
     if debug:
         print(data)

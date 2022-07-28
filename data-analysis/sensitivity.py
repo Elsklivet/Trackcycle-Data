@@ -43,11 +43,16 @@ NUM_PTS_TO_AVG = 500
 
 class Log():
     def error(msg: str):
-        termcolor.cprint(f"ERROR: {msg}", 'red')
+        level = termcolor.colored(f"ERROR", 'red')
+        print(f"[ {level} ] {msg}")
     def warning(msg: str):
-        termcolor.cprint(f"WARNING: {msg}", 'yellow')
+        level = termcolor.colored(f"WARNING", 'yellow')
+        print(f"[ {level} ] {msg}")
+    def ok(msg: str):
+        level = termcolor.colored(f"OK", 'green')
+        print(f"[ {level} ] {msg}")
     def info(msg: str):
-        print(f"INFO: {msg}")
+        print(f"[ INFO ] {msg}")
         
 def parse_line(line:str):
     # 0   1   2   3   4     5      6      7      8     9     10    11      12    13   14   15     16
@@ -205,7 +210,7 @@ def main():
     time_off = (time_off / LINES_PER_SECOND)
     time_on = (time_on / LINES_PER_SECOND)
     end = time.time()
-    termcolor.cprint(f"Finished simulation in {(end-start)} seconds", color="green")
+    Log.ok(f"Finished simulation in {(end-start)} seconds")
     print(
 f"""========================================================================
 {ANGLE=}
