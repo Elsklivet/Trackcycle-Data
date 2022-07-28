@@ -80,7 +80,10 @@ def read_and_parse(path:str, queue:multiprocessing.Queue, mode:str):
                     continue
                 elif line.startswith("--"):
                     continue
-                lines.append(parse_line(line))
+                data = parse_line(line)
+                if data['lat'] == 0 and data['lon'] == 0:
+                    continue
+                lines.append(data)
     except Exception:
         Log.error(f"Failed to parse file '{path}'")
         return
@@ -88,7 +91,7 @@ def read_and_parse(path:str, queue:multiprocessing.Queue, mode:str):
     Log.ok(f"Finished processing '{path}' in {end-start} seconds")
     queue.put((mode,lines))
     
-def haversine(coord1, coord2):
+def haversine(coord1: tuple, coord2: tuple):
     # Kindly borrowed from https://janakiev.com/blog/gps-points-distance-python/
     R = 6372800  # Earth radius in meters
     lat1, lon1 = coord1
@@ -129,7 +132,7 @@ def main():
     
     if not os.path.exists(cycled_path):
         Log.error(f"File (--back) '{cycled_path}' was inaccessible or does not exist")
-        exit(3)
+        exit(2)
 
     if args.debug:
         if args.debug != 0 and args.debug != 1:
@@ -167,10 +170,19 @@ def main():
     
     if not there or type(there) != list:
         Log.error(f"Respone 'there' was somehow not a list")
+        exit(3)
     if not back or type(back) != list:
         Log.error(f"Respone 'back' was somehow not a list")
+        exit(3)
     
     # Now we have to process those points
+    
+    # Difference in duration is important for determining interpolation
+    diff = abs(len(there) - len(back))
+    Log.info(f"Duration difference of {diff/90} seconds")
+    
+    dis = haversine((there[0]['lat'], there[0]['lon']), (back[-1]['lat'], back[-1]['lon']))
+    Log.info(f"Distance between initial points of {dis} meters")
     
 
 if __name__ == "__main__":
