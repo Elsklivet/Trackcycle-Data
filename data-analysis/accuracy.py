@@ -75,15 +75,35 @@ def read_and_parse(path:str, queue:multiprocessing.Queue, mode:str):
     lines = []
     try:
         with open(path, 'r') as infile:
+            last_lat = last_lon = None
             for idx, line in enumerate(infile.readlines()):
+                # A couple special cases that need skipped by the processor:
+                #  *  The first line in each file is the column-header row
+                #  *  Any lines starting with "--" represent special markers for some of the other analyzers
+                #  *  The sensors collect several tens of times per second, and the GPS won't change in that time,
+                #     so we can significantly save on space (and make our calculations easier) by skipping repeats.
                 if idx == 0:
                     continue
                 elif line.startswith("--"):
                     continue
                 data = parse_line(line)
+                
                 if data['lat'] == 0 and data['lon'] == 0:
                     continue
-                lines.append(data)
+
+                if not last_lat and not last_lon:
+                    # Initialize if not exists
+                    last_lat = data['lat']
+                    last_lon = data['lon']
+                elif data['lat'] == last_lat and data['lon'] == last_lon:
+                    # Skip if the data for this line is the same as the last 
+                    # collected data
+                    continue
+                else:
+                    # Append the data otherwise
+                    last_lat = data['lat']
+                    last_lon = data['lon']
+                    lines.append(data)
     except Exception:
         Log.error(f"Failed to parse file '{path}'")
         return
@@ -112,7 +132,7 @@ def main():
     global TTFS
     global GPS_START_TIME
     global GPS_CYCLE_SAVE_THRESHOLD
-    global GPS_CYCLE_OFF_TIME
+    global GPS_CYCLE_OFF_TIM
     global LINES_PER_SECOND
     global NUM_PTS_TO_AVG
     
@@ -177,13 +197,38 @@ def main():
     
     # Now we have to process those points
     
-    # Difference in duration is important for determining interpolation
-    diff = abs(len(there) - len(back))
-    Log.info(f"Duration difference of {diff/90} seconds")
+    # Need lengths of arrays for clamping
+    there_len = len(there)
+    back_len = len(back)
     
-    dis = haversine((there[0]['lat'], there[0]['lon']), (back[-1]['lat'], back[-1]['lon']))
-    Log.info(f"Distance between initial points of {dis} meters")
-    
+    there_duration = there[-1]['time']-there[0]['time']
+    back_duration = back[-1]['time']-back[0]['time']
 
+    # Difference in duration is important for determining interpolation
+    diff = abs(there_len - back_len)
+    
+    if debug:
+        Log.info(f"Length of first trip={there_len}")
+        Log.info(f"Length of back trip={back_len}")
+        Log.info(f"Duration difference of {abs(there_duration-back_duration)/1000} s with first trip={there_duration/1000} s and back={back_duration/1000} s")
+        dis = haversine((there[0]['lat'], there[0]['lon']), (back[-1]['lat'], back[-1]['lon']))
+        Log.info(f"Distance between initial points of {dis} meters")
+    
+    # May need to clamp the shorter of the two trips so that we don't run into
+    # weird problems pertaining to trips starting or ending later than
+    # the other (this will hopefully not be a problem if the way data is collected changes).
+    
+    # Root mean squared error
+    # RMSE = sqrt( ( sum( (predicted - actual)^2 ) ) / n )
+    rmse = 0
+    
+    # Always-on
+    for point in there:
+        print(point)
+    print("BACK")
+    # Duty-cycled
+    for point in back:
+        print(point)
+    
 if __name__ == "__main__":
     main()
