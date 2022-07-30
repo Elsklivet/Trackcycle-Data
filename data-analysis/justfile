@@ -1,5 +1,14 @@
+set shell := ["powershell", "-c"]
+
 test-24-d:
 	python accuracy.py -t files/2022_24_7_12-38-46.txt -b files/2022_24_7_12-26-30.txt -d 1
+test-22-d:
+	python accuracy.py -t files/2022_22_7_13-54-31.txt -b files/2022_22_7_13-36-41.txt -d 1
+test-24:
+	python accuracy.py -t files/2022_24_7_12-38-46.txt -b files/2022_24_7_12-26-30.txt
+test-22:
+	python accuracy.py -t files/2022_22_7_13-54-31.txt -b files/2022_22_7_13-36-41.txt 
+# Ubuntu versions
 test-24-u-d:
 	python3.10 accuracy.py -t files/2022_24_7_12-38-46.txt -b files/2022_24_7_12-26-30.txt -d 1
 test-22-u-d:
