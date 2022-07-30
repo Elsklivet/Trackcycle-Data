@@ -9,6 +9,12 @@ import time
 import multiprocessing
 import math
 from pyproj import Geod
+from random import uniform
+from pyproj import CRS, Transformer
+from shapely.geometry import Point, LineString
+# import pandas as pd
+# import geopandas as gpd
+# from geopandas import GeoDataFrame
 
 arg_parser = argparse.ArgumentParser(description='Commit sensitivit analysis about the azimuth-trigger parameter for TrackCycle.',
 usage="python accuracy.py -t <input file path> -b <input file path> [-d <debug level: integer>]")
@@ -126,6 +132,22 @@ def haversine(coord1: tuple, coord2: tuple):
     
     return 2*R*math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
+def reproject_point(lon, lat):
+    # Kindly borrowed from https://gis.stackexchange.com/questions/433825/interpolating-series-of-points-between-two-locations-using-python
+    in_crs = CRS.from_epsg(4326)
+    out_crs = CRS.from_epsg(2272)
+    proj = Transformer.from_crs(in_crs, out_crs, always_xy=True)
+    x, y = proj.transform(lon, lat)
+    return x, y
+
+def generate_random_points_on_line(number, line):
+    # Kindly borrowed from https://gis.stackexchange.com/questions/433825/interpolating-series-of-points-between-two-locations-using-python
+    points = []
+    while len(points) < number:
+        point = line.interpolate(uniform(0, line.length))
+        points.append(point)
+    return points
+
 def main():
     global args
     global debug
@@ -214,21 +236,144 @@ def main():
         dis = haversine((there[0]['lat'], there[0]['lon']), (back[-1]['lat'], back[-1]['lon']))
         Log.info(f"Distance between initial points of {dis} meters")
     
-    # May need to clamp the shorter of the two trips so that we don't run into
-    # weird problems pertaining to trips starting or ending later than
-    # the other (this will hopefully not be a problem if the way data is collected changes).
-    
+    geoid = Geod(ellps="WGS84")
+
+    # Begin by interpolating shorter list to be size of longer list
+    if there_len < back_len:
+        # First array is shorter
+        idx = 0
+        while idx < len(there):
+            current = there[idx]['curr']
+            curr_time = there[idx]['time']
+            next_time = None
+            if idx+1 < len(there):
+                next_time = there[idx+1]['time']
+            if next_time:
+                time_diff = abs(next_time - curr_time)
+                time_diff /= 1000
+                if debug:
+                    Log.info(f"Time difference of {time_diff}")
+                if time_diff > 1:
+                    if debug:
+                        Log.info(f"Detected time difference")
+                    # Longer than one second in between, interpolate here
+                    start_point = Point(there[idx]['lat'], there[idx]['lon'])
+                    end_point = Point(there[idx+1]['lat'], there[idx+1]['lon'])
+                    line = LineString([start_point, end_point])
+                    points = geoid.npts(there[idx]['lat'], there[idx]['lon'], there[idx+1]['lat'], there[idx+1]['lon'], time_diff)
+                    if debug:
+                        Log.info(f"Initial point = {(there[idx]['lat'], there[idx]['lon'])}")
+                        Log.info(f"{points}")
+                        Log.info(f"Final point = {(there[idx+1]['lat'], there[idx+1]['lon'])}")
+                    seconds = 1
+                    for point in points:
+                        inst = {'lat': point[0], 'lon':point[1], "azimuth":0, "time": curr_time + seconds*1000, "curr": current}
+                        there.insert(idx+1, inst)
+                        idx += 1
+                        seconds +=1
+            idx += 1
+
+        if len(there) < len(back):
+            idx = len(there) - 1
+            diff = len(back) - len(there)
+            points = geoid.npts(there[idx]['lat'], there[idx]['lon'], back[-1]['lat'], back[-1]['lon'], diff)
+            if debug:
+                Log.info(f"Initial point = {(there[idx]['lat'], there[idx]['lon'])}")
+                Log.info(f"{points}")
+                Log.info(f"Final point = {(back[-1]['lat'], back[-1]['lon'])}")
+            seconds = 1
+            for point in points:
+                inst = {'lat': point[0], 'lon':point[1], "azimuth":0, "time": curr_time + seconds*1000, "curr": current}
+                there.insert(idx+1, inst)
+                idx += 1
+
+        there.reverse()
+
+    elif back_len < there_len:
+        # Second array is shorter
+        idx = 0
+        while idx < len(back):
+            current = back[idx]['curr']
+            curr_time = back[idx]['time']
+            next_time = None
+            if idx+1 < len(back):
+                next_time = back[idx+1]['time']
+            if next_time:
+                time_diff = abs(next_time - curr_time)
+                time_diff /= 1000
+                if debug:
+                    Log.info(f"Time difference of {time_diff}")
+                if time_diff > 1:
+                    if debug:
+                        Log.info(f"Detected time difference")
+                    # Longer than one second in between, interpolate here
+                    points = geoid.npts(back[idx]['lat'], back[idx]['lon'], back[idx+1]['lat'], back[idx+1]['lon'], time_diff)
+                    if debug:
+                        Log.info(f"Initial point = {(back[idx]['lat'], back[idx]['lon'])}")
+                        Log.info(f"{points}")
+                        Log.info(f"Final point = {(back[idx+1]['lat'], back[idx+1]['lon'])}")
+                    seconds = 1
+                    for point in points:
+                        inst = {'lat': point[0], 'lon':point[1], "azimuth":0, "time": curr_time + seconds*1000, "curr": current}
+                        back.insert(idx+1, inst)
+                        idx += 1
+                        seconds +=1
+
+            idx += 1
+
+        if len(back) < len(there):
+            idx = len(back) - 1
+            diff = len(there) - len(back)
+            points = geoid.npts(back[idx]['lat'], back[idx]['lon'], there[-1]['lat'], there[-1]['lon'], diff)
+            if debug:
+                Log.info(f"Initial point = {(back[idx]['lat'], back[idx]['lon'])}")
+                Log.info(f"{points}")
+                Log.info(f"Final point = {(there[-1]['lat'], there[-1]['lon'])}")
+            seconds = 1
+            for point in points:
+                inst = {'lat': point[0], 'lon':point[1], "azimuth":0, "time": curr_time + seconds*1000, "curr": current}
+                back.insert(idx+1, inst)
+                idx += 1
+
+        back.reverse()
+
+    # In the rare occasion they are of equal length, nothing can safely be interpolated.
+    if debug:
+        Log.info(f"There preview {there[-5:]}")
+        Log.info(f"Back preview {back[-5:]}")
+        Log.info(f"Length of there = {len(there)}")
+        Log.info(f"Length of back = {len(back)}")
+    if len(there) != len(back):
+        Log.error("Lengths not equal")
     # Root mean squared error
     # RMSE = sqrt( ( sum( (predicted - actual)^2 ) ) / n )
     rmse = 0
     
-    # Always-on
-    for point in there:
-        print(point)
-    print("BACK")
-    # Duty-cycled
-    for point in back:
-        print(point)
+    for there_point, back_point in zip(there,back):
+        dis = haversine((there_point['lat'], there_point['lon']), (back_point['lat'], back_point['lon']))
+        Log.info(f"{(there_point['lat'], there_point['lon'])} @ {(back_point['lat'], back_point['lon'])}")
+        # Log.info(f"Distance = {dis}")
+        rmse += dis*dis
+
+    rmse /= there_len
+    rmse = math.sqrt(rmse)
+    Log.info(f"RMSE = {rmse}")
+
     
+
+    # there_df = pd.DataFrame(there)
+    # back_df = pd.DatetimeIndex(back)
+
+    # there_geom = [Point(xy) for xy in zip(there_df['lat'], there_df['lon'])]
+    # there_gdf = GeoDataFrame(there_df, there_geom)
+
+    # back_geom = [Point(xy) for xy in zip(back_df['lat'], back_df['lon'])]
+    # back_gdf = GeoDataFrame(back_df, back_geom)
+
+    # fig, world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres')).plot(figsize=(10, 6))
+
+    # there_gdf.plot(ax=world, marker='o', color='red', markersize=15)
+    # back_gdf.plot(ax=world, marker='o', color='blue', markersize=15)
+
 if __name__ == "__main__":
     main()

@@ -6,3 +6,4 @@ phone-screenshots/
 kalman-examples/
 phone-data/
 GreatPittGPS/
+.env
