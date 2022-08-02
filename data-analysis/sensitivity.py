@@ -229,7 +229,6 @@ Percent time off (estimate):     {(time_off/time_on)*100}%
 Average current:                 {current/total} mA
 Points collected always on:      {points_collected[0]}
 Points collected duty cycled:    {points_collected[1]}
-Accuracy (as percent):           {(points_collected[1]/points_collected[0])*100}%
 ========================================================================"""
 )  
 

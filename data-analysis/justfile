@@ -8,6 +8,8 @@ test-24:
 	python accuracy.py -t files/2022_24_7_12-38-46.txt -b files/2022_24_7_12-26-30.txt
 test-22:
 	python accuracy.py -t files/2022_22_7_13-54-31.txt -b files/2022_22_7_13-36-41.txt 
+test-21:
+	python accuracy.py -t files/2022_21_7_13-59-29.txt -b files/2022_21_7_14-09-51.txt 
 # Ubuntu versions
 test-24-u-d:
 	python3.10 accuracy.py -t files/2022_24_7_12-38-46.txt -b files/2022_24_7_12-26-30.txt -d 1
@@ -16,4 +18,6 @@ test-22-u-d:
 test-24-u:
 	python3.10 accuracy.py -t files/2022_24_7_12-38-46.txt -b files/2022_24_7_12-26-30.txt
 test-22-u:
-	python3.10 accuracy.py -t files/2022_22_7_13-54-31.txt -b files/2022_22_7_13-36-41.txt 
+	python3.10 accuracy.py -t files/2022_22_7_13-54-31.txt -b files/2022_22_7_13-36-41.txt
+test-21-u:
+	python3.10 accuracy.py -t files/2022_21_7_13-59-29.txt -b files/2022_21_7_14-09-51.txt 
