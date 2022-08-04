@@ -10,6 +10,7 @@ import multiprocessing
 import math
 from pyproj import Geod
 from random import uniform
+
 # from pyproj import CRS, Transformer
 from shapely.geometry import Point, LineString
 import pandas as pd
@@ -17,11 +18,28 @@ import geopandas as gpd
 from geopandas import GeoDataFrame
 from matplotlib import pyplot as plt
 
-arg_parser = argparse.ArgumentParser(description='Commit sensitivit analysis about the azimuth-trigger parameter for TrackCycle.',
-usage="python accuracy.py -t <input file path> -b <input file path> [-d <debug level: integer>]")
-arg_parser.add_argument("-t","--there", type=str, help="input file path from which to read ALWAYS-ON sensor data")
-arg_parser.add_argument("-b","--back", type=str, help="input file path from which to read BASELINE or DUTY-CYCLED sensor data")
-arg_parser.add_argument("-d","--debug", type=int, help="debug level (0=no debugging (default), 1=debugging on)")
+arg_parser = argparse.ArgumentParser(
+    description="Commit sensitivit analysis about the azimuth-trigger parameter for TrackCycle.",
+    usage="python accuracy.py -t <input file path> -b <input file path> [-d <debug level: integer>]",
+)
+arg_parser.add_argument(
+    "-t",
+    "--there",
+    type=str,
+    help="input file path from which to read ALWAYS-ON sensor data",
+)
+arg_parser.add_argument(
+    "-b",
+    "--back",
+    type=str,
+    help="input file path from which to read BASELINE or DUTY-CYCLED sensor data",
+)
+arg_parser.add_argument(
+    "-d",
+    "--debug",
+    type=int,
+    help="debug level (0=no debugging (default), 1=debugging on)",
+)
 
 args = None
 debug = False
@@ -42,46 +60,58 @@ debug = False
 # 90  |  1.570796
 # 180 |  3.141593 (pi)
 
-TTFS = 3000 # This actually could be anywhere from 1000 to 15000 :)
+TTFS = 3000  # This actually could be anywhere from 1000 to 15000 :)
 GPS_START_TIME = 14000
 GPS_CYCLE_SAVE_THRESHOLD = 10000
 GPS_CYCLE_OFF_TIME = GPS_START_TIME + GPS_CYCLE_SAVE_THRESHOLD
-LINES_PER_SECOND = 90 # It is around this number, not exactly 90
+LINES_PER_SECOND = 90  # It is around this number, not exactly 90
 NUM_PTS_TO_AVG = 500
 
-class Log():
+
+class Log:
     def error(msg: str):
-        level = termcolor.colored(f"ERROR", 'red')
+        level = termcolor.colored(f"ERROR", "red")
         print(f"[ {level} ] {msg}")
+
     def warning(msg: str):
-        level = termcolor.colored(f"WARNING", 'yellow')
+        level = termcolor.colored(f"WARNING", "yellow")
         print(f"[ {level} ] {msg}")
+
     def ok(msg: str):
-        level = termcolor.colored(f"OK", 'green')
+        level = termcolor.colored(f"OK", "green")
         print(f"[ {level} ] {msg}")
+
     def info(msg: str):
         print(f"[ INFO ] {msg}")
-        
-def parse_line(line:str):
+
+
+def parse_line(line: str):
     # 0   1   2   3   4     5      6      7      8     9     10    11      12    13   14   15     16
     # lat,lon,alt,acc,speed,accelx,accely,accelz,gyrox,gyroy,gyroz,azimuth,pitch,roll,time,batpct,current
-    vals = line.split(',')
+    vals = line.split(",")
     ret = None
     try:
-        ret = {"lat":float(vals[0]),"lon":float(vals[1]),"azimuth":float(vals[11]),"time":int(vals[14]),"curr":int(vals[16])}
+        ret = {
+            "lat": float(vals[0]),
+            "lon": float(vals[1]),
+            "azimuth": float(vals[11]),
+            "time": int(vals[14]),
+            "curr": int(vals[16]),
+        }
     except IndexError:
-        ret = {"lat":float(vals[0]),"lon":float(vals[1]),"azimuth":float(vals[11])}
+        ret = {"lat": float(vals[0]), "lon": float(vals[1]), "azimuth": float(vals[11])}
     finally:
         if not ret:
             raise Exception("Returned a none value from parse")
         return ret
-    
-def read_and_parse(path:str, queue:multiprocessing.Queue, mode:str):
+
+
+def read_and_parse(path: str, queue: multiprocessing.Queue, mode: str):
     start = time.time()
     Log.info(f"Begins processing '{path}'")
     lines = []
     try:
-        with open(path, 'r') as infile:
+        with open(path, "r") as infile:
             last_lat = last_lon = None
             for idx, line in enumerate(infile.readlines()):
                 # A couple special cases that need skipped by the processor:
@@ -94,44 +124,48 @@ def read_and_parse(path:str, queue:multiprocessing.Queue, mode:str):
                 elif line.startswith("--"):
                     continue
                 data = parse_line(line)
-                
-                if data['lat'] == 0 and data['lon'] == 0:
+
+                if data["lat"] == 0 and data["lon"] == 0:
                     continue
 
                 if not last_lat and not last_lon:
                     # Initialize if not exists
-                    last_lat = data['lat']
-                    last_lon = data['lon']
-                elif data['lat'] == last_lat and data['lon'] == last_lon:
-                    # Skip if the data for this line is the same as the last 
+                    last_lat = data["lat"]
+                    last_lon = data["lon"]
+                elif data["lat"] == last_lat and data["lon"] == last_lon:
+                    # Skip if the data for this line is the same as the last
                     # collected data
                     continue
                 else:
                     # Append the data otherwise
-                    last_lat = data['lat']
-                    last_lon = data['lon']
+                    last_lat = data["lat"]
+                    last_lon = data["lon"]
                     lines.append(data)
     except Exception:
         Log.error(f"Failed to parse file '{path}'")
         return
     end = time.time()
     Log.ok(f"Finished processing '{path}' in {end-start} seconds")
-    queue.put((mode,lines))
-    
+    queue.put((mode, lines))
+
+
 def haversine(coord1: tuple, coord2: tuple):
     # Kindly borrowed from https://janakiev.com/blog/gps-points-distance-python/
     R = 6372800  # Earth radius in meters
     lat1, lon1 = coord1
     lat2, lon2 = coord2
-    
-    phi1, phi2 = math.radians(lat1), math.radians(lat2) 
-    dphi       = math.radians(lat2 - lat1)
-    dlambda    = math.radians(lon2 - lon1)
-    
-    a = math.sin(dphi/2)**2 + \
-        math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
-    
-    return 2*R*math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+
+    a = (
+        math.sin(dphi / 2) ** 2
+        + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    )
+
+    return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
 
 def reproject_point(lon, lat):
     # Kindly borrowed from https://gis.stackexchange.com/questions/433825/interpolating-series-of-points-between-two-locations-using-python
@@ -142,6 +176,7 @@ def reproject_point(lon, lat):
     # return x, y
     ...
 
+
 def generate_random_points_on_line(number, line):
     # Kindly borrowed from https://gis.stackexchange.com/questions/433825/interpolating-series-of-points-between-two-locations-using-python
     points = []
@@ -149,6 +184,7 @@ def generate_random_points_on_line(number, line):
         point = line.interpolate(uniform(0, line.length))
         points.append(point)
     return points
+
 
 def main():
     global args
@@ -159,87 +195,99 @@ def main():
     global GPS_CYCLE_OFF_TIM
     global LINES_PER_SECOND
     global NUM_PTS_TO_AVG
-    
+
     args = arg_parser.parse_args()
 
     if not args.there or not args.back:
         arg_parser.print_help()
         exit(1)
-    
+
     alwayson_path = args.there
-    
+
     if not os.path.exists(alwayson_path):
-        Log.error(f"File (--there) '{alwayson_path}' was inaccessible or does not exist")
+        Log.error(
+            f"File (--there) '{alwayson_path}' was inaccessible or does not exist"
+        )
         exit(2)
-        
+
     cycled_path = args.back
-    
+
     if not os.path.exists(cycled_path):
         Log.error(f"File (--back) '{cycled_path}' was inaccessible or does not exist")
         exit(2)
 
     if args.debug:
         if args.debug != 0 and args.debug != 1:
-            Log.warning(f"Expected debug level 0 or 1, got '{args.debug}'. Defaulting to 0.")
+            Log.warning(
+                f"Expected debug level 0 or 1, got '{args.debug}'. Defaulting to 0."
+            )
         else:
             debug = args.debug == 1
-            
+
     # Need to come up with some way to read files of a different size as well as backwards and just "guess"?
 
-    context = multiprocessing.get_context('spawn')
+    context = multiprocessing.get_context("spawn")
     queue = context.Queue()
-    there_proc = multiprocessing.Process(target=read_and_parse, args=(alwayson_path, queue, "there"))
-    back_proc = multiprocessing.Process(target=read_and_parse, args=(cycled_path, queue, "back"))
-    
+    there_proc = multiprocessing.Process(
+        target=read_and_parse, args=(alwayson_path, queue, "there")
+    )
+    back_proc = multiprocessing.Process(
+        target=read_and_parse, args=(cycled_path, queue, "back")
+    )
+
     there_proc.start()
     back_proc.start()
-    
+
     response = []
     response.append(queue.get())
     response.append(queue.get())
-    
+
     there_proc.join()
     back_proc.join()
-    
+
     there = back = None
-    
+
     for res in response:
         if res[0] == "there":
             there = res[1]
         else:
             back = res[1]
-    
+
     # print(there[0])
     # print(back[0])
-    
+
     if not there or type(there) != list:
         Log.error(f"Respone 'there' was somehow not a list")
         exit(3)
     if not back or type(back) != list:
         Log.error(f"Respone 'back' was somehow not a list")
         exit(3)
-    
+
     # Now we have to process those points
-    
+
     start = time.time()
-    
+
     # Need lengths of arrays for clamping
     there_len = len(there)
     back_len = len(back)
-    
-    there_duration = there[-1]['time']-there[0]['time']
-    back_duration = back[-1]['time']-back[0]['time']
+
+    there_duration = there[-1]["time"] - there[0]["time"]
+    back_duration = back[-1]["time"] - back[0]["time"]
 
     # Difference in duration is important for determining interpolation
     diff = abs(there_len - back_len)
-    
+
     if debug:
         Log.info(f"Length of first trip={there_len}")
         Log.info(f"Length of back trip={back_len}")
-        Log.info(f"Duration difference of {abs(there_duration-back_duration)/1000} s with first trip={there_duration/1000} s and back={back_duration/1000} s")
-        dis = haversine((there[0]['lat'], there[0]['lon']), (back[-1]['lat'], back[-1]['lon']))
+        Log.info(
+            f"Duration difference of {abs(there_duration-back_duration)/1000} s with first trip={there_duration/1000} s and back={back_duration/1000} s"
+        )
+        dis = haversine(
+            (there[0]["lat"], there[0]["lon"]), (back[-1]["lat"], back[-1]["lon"])
+        )
         Log.info(f"Distance between initial points of {dis} meters")
-    
+
     geoid = Geod(ellps="WGS84")
 
     # Begin by interpolating shorter list to be size of longer list
@@ -247,11 +295,11 @@ def main():
         # First array is shorter
         idx = 0
         while idx < len(there):
-            current = there[idx]['curr']
-            curr_time = there[idx]['time']
+            current = there[idx]["curr"]
+            curr_time = there[idx]["time"]
             next_time = None
-            if idx+1 < len(there):
-                next_time = there[idx+1]['time']
+            if idx + 1 < len(there):
+                next_time = there[idx + 1]["time"]
             if next_time:
                 time_diff = abs(next_time - curr_time)
                 time_diff /= 1000
@@ -264,19 +312,35 @@ def main():
                     # start_point = Point(there[idx]['lat'], there[idx]['lon'])
                     # end_point = Point(there[idx+1]['lat'], there[idx+1]['lon'])
                     # line = LineString([start_point, end_point])
-                    points = geoid.npts(there[idx]['lat'], there[idx]['lon'], there[idx+1]['lat'], there[idx+1]['lon'], time_diff)
+                    points = geoid.npts(
+                        there[idx]["lat"],
+                        there[idx]["lon"],
+                        there[idx + 1]["lat"],
+                        there[idx + 1]["lon"],
+                        time_diff,
+                    )
                     if debug:
-                        Log.info(f"Initial point = {(there[idx]['lat'], there[idx]['lon'])}")
+                        Log.info(
+                            f"Initial point = {(there[idx]['lat'], there[idx]['lon'])}"
+                        )
                         Log.info(f"{points}")
-                        Log.info(f"Final point = {(there[idx+1]['lat'], there[idx+1]['lon'])}")
+                        Log.info(
+                            f"Final point = {(there[idx+1]['lat'], there[idx+1]['lon'])}"
+                        )
                     seconds = 1
                     for point in points:
-                        inst = {'lat': point[0], 'lon':point[1], "azimuth":0, "time": curr_time + seconds*1000, "curr": current}
-                        there.insert(idx+1, inst)
+                        inst = {
+                            "lat": point[0],
+                            "lon": point[1],
+                            "azimuth": 0,
+                            "time": curr_time + seconds * 1000,
+                            "curr": current,
+                        }
+                        there.insert(idx + 1, inst)
                         idx += 1
-                        seconds +=1
+                        seconds += 1
             idx += 1
-            
+
         there.reverse()
 
         # if len(there) < len(back):
@@ -297,11 +361,11 @@ def main():
         # Second array is shorter
         idx = 0
         while idx < len(back):
-            current = back[idx]['curr']
-            curr_time = back[idx]['time']
+            current = back[idx]["curr"]
+            curr_time = back[idx]["time"]
             next_time = None
-            if idx+1 < len(back):
-                next_time = back[idx+1]['time']
+            if idx + 1 < len(back):
+                next_time = back[idx + 1]["time"]
             if next_time:
                 time_diff = abs(next_time - curr_time)
                 time_diff /= 1000
@@ -311,20 +375,36 @@ def main():
                     if debug:
                         Log.info(f"Detected time difference")
                     # Longer than one second in between, interpolate here
-                    points = geoid.npts(back[idx]['lat'], back[idx]['lon'], back[idx+1]['lat'], back[idx+1]['lon'], time_diff)
+                    points = geoid.npts(
+                        back[idx]["lat"],
+                        back[idx]["lon"],
+                        back[idx + 1]["lat"],
+                        back[idx + 1]["lon"],
+                        time_diff,
+                    )
                     if debug:
-                        Log.info(f"Initial point = {(back[idx]['lat'], back[idx]['lon'])}")
+                        Log.info(
+                            f"Initial point = {(back[idx]['lat'], back[idx]['lon'])}"
+                        )
                         Log.info(f"{points}")
-                        Log.info(f"Final point = {(back[idx+1]['lat'], back[idx+1]['lon'])}")
+                        Log.info(
+                            f"Final point = {(back[idx+1]['lat'], back[idx+1]['lon'])}"
+                        )
                     seconds = 1
                     for point in points:
-                        inst = {'lat': point[0], 'lon':point[1], "azimuth":0, "time": curr_time + seconds*1000, "curr": current}
-                        back.insert(idx+1, inst)
+                        inst = {
+                            "lat": point[0],
+                            "lon": point[1],
+                            "azimuth": 0,
+                            "time": curr_time + seconds * 1000,
+                            "curr": current,
+                        }
+                        back.insert(idx + 1, inst)
                         idx += 1
-                        seconds +=1
+                        seconds += 1
 
             idx += 1
-            
+
         back.reverse()
 
         # if len(back) < len(there):
@@ -341,8 +421,6 @@ def main():
         #         back.insert(idx+1, inst)
         #         idx += 1
 
-        
-
     # In the rare occasion they are of equal length, nothing can safely be interpolated.
     if debug:
         Log.info(f"There preview {there[-5:]}")
@@ -357,38 +435,44 @@ def main():
     avg_dist = 0
     n = 0
     distances = []
-    
+
     # Not even sure how to do this
     if len(back) < len(there):
         # Clamp to way back
-        
+
         for back_point in back:
             diffs = []
-            for there_point in there: 
-                dis = haversine((there_point['lat'], there_point['lon']), (back_point['lat'], back_point['lon']))
+            for there_point in there:
+                dis = haversine(
+                    (there_point["lat"], there_point["lon"]),
+                    (back_point["lat"], back_point["lon"]),
+                )
                 diffs.append(dis)
             dist = min(diffs)
             distances.append(min(diffs))
             if debug:
                 Log.info(f"Distance of {dist}")
             avg_dist += dist
-            rmse += dist*dist
+            rmse += dist * dist
             n += 1
     else:
         # Clamp to way there
         for there_point in there:
             diffs = []
-            for back_point in back: 
-                dis = haversine((there_point['lat'], there_point['lon']), (back_point['lat'], back_point['lon']))
+            for back_point in back:
+                dis = haversine(
+                    (there_point["lat"], there_point["lon"]),
+                    (back_point["lat"], back_point["lon"]),
+                )
                 diffs.append(dis)
             dist = min(diffs)
             if debug:
                 Log.info(f"Distance of {dist}")
             distances.append(dist)
             avg_dist += dist
-            rmse += dist*dist
+            rmse += dist * dist
             n += 1
-    
+
     # for there_point, back_point in zip(there,back):
     #     dis = haversine((there_point['lat'], there_point['lon']), (back_point['lat'], back_point['lon']))
     #     Log.info(f"{(there_point['lat'], there_point['lon'])} @ {(back_point['lat'], back_point['lon'])}")
@@ -405,7 +489,7 @@ def main():
     avg_dist /= n
     rmse /= n
     rmse = math.sqrt(rmse)
-    
+
     end = time.time()
     Log.ok(f"Finished processing in {end-start} seconds")
     Log.ok(f"RMSE = {rmse}")
@@ -413,23 +497,24 @@ def main():
     Log.ok(f"Average distance = {avg_dist}")
     Log.ok(f"Median distance = {median}")
     Log.ok(f"Maximum distance = {max(distances)}")
-    
-    
 
     there_df = pd.DataFrame(there)
     back_df = pd.DataFrame(back)
 
-    there_geom = [Point(xy) for xy in zip(there_df['lon'], there_df['lat'])]
+    there_geom = [Point(xy) for xy in zip(there_df["lon"], there_df["lat"])]
     there_gdf = GeoDataFrame(there_df, geometry=there_geom)
 
-    back_geom = [Point(xy) for xy in zip(back_df['lon'], back_df['lat'])]
+    back_geom = [Point(xy) for xy in zip(back_df["lon"], back_df["lat"])]
     back_gdf = GeoDataFrame(back_df, geometry=back_geom)
 
-    world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres')).plot(figsize=(10, 6))
+    world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres")).plot(
+        figsize=(10, 6)
+    )
 
-    there_gdf.plot(ax=world, marker='o', color='red', markersize=15)
-    back_gdf.plot(ax=world, marker='o', color='blue', markersize=15)
+    there_gdf.plot(ax=world, marker="o", color="red", markersize=15)
+    back_gdf.plot(ax=world, marker="o", color="blue", markersize=15)
     plt.show()
+
 
 if __name__ == "__main__":
     main()
