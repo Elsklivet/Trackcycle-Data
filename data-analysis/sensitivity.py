@@ -318,8 +318,8 @@ GPS seconds on (estimate):       {time_on} s
 GPS seconds off (estimate):      {time_off} s
 Percent time off (estimate):     {(time_off/time_on)*100}%
 Average current:                 {current/total} mA
-Change in capacity (mAh):        {change_capmah if change_capmah else "Not measured"} mAh
-Change in energy (nWh):          {change_engnwh if change_engnwh else "Not measured"} nWh
+Change in capacity (mAh):        {change_capmah if change_capmah else "Not measured or 0"} mAh
+Change in energy (nWh):          {change_engnwh if change_engnwh else "Not measured or 0"} nWh
 Points collected always on:      {points_collected[0]}
 Points collected duty cycled:    {points_collected[1]}
 ========================================================================"""
