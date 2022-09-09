@@ -173,6 +173,7 @@ def alpha(coord1: tuple, coord2: tuple):
 
 def geodesic_distance(coord1: tuple, coord2: tuple):
     # Inspired by https://janakiev.com/blog/gps-points-distance-python/
+    # Reference [1]
     
     # Approximate average Earth radius
     earth_radius = 6372800
