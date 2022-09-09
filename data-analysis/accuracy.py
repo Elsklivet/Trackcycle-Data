@@ -147,43 +147,47 @@ def read_and_parse(path: str, queue: multiprocessing.Queue, mode: str):
     end = time.time()
     Log.ok(f"Finished processing '{path}' in {end-start} seconds")
     queue.put((mode, lines))
+    
+
+# haversine alpha = hav(delta lat) + cos(lat1) * cos(lat1) * hav(delta lon)
+# where hav(x) = sin^2(x/2)
+# geodesic distance = 2 * radius_earth * arctan(sqrt(alpha), sqrt(1-alpha))
+# Formula source: https://en.wikipedia.org/wiki/Haversine_formula#Formulation
+def hav(theta: float):
+    theta = math.radians(theta)
+    return math.sin(theta / 2) ** 2
 
 
-def haversine(coord1: tuple, coord2: tuple):
-    # Kindly borrowed from https://janakiev.com/blog/gps-points-distance-python/
-    R = 6372800  # Earth radius in meters
-    lat1, lon1 = coord1
-    lat2, lon2 = coord2
+def alpha(coord1: tuple, coord2: tuple):
+    # (lat, lon)
+    delta_latitude = coord2[0] - coord1[0]
+    delta_longitude = coord2[1] - coord1[1]
+    
+    return (
+        hav(delta_latitude) 
+        + math.cos(math.radians(coord1[0])) 
+        * math.cos(math.radians(coord2[0]))
+        * hav(delta_longitude)
+    )
+    
 
-    phi1, phi2 = math.radians(lat1), math.radians(lat2)
-    dphi = math.radians(lat2 - lat1)
-    dlambda = math.radians(lon2 - lon1)
+def geodesic_distance(coord1: tuple, coord2: tuple):
+    # Inspired by https://janakiev.com/blog/gps-points-distance-python/
+    
+    # Approximate average Earth radius
+    earth_radius = 6372800
+    
+    alph = alpha(coord1, coord2)
 
-    a = (
-        math.sin(dphi / 2) ** 2
-        + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    return (
+        2 * 
+        earth_radius * 
+        math.atan2(
+            math.sqrt(alph), 
+            math.sqrt(1 - alph)
+        )
     )
 
-    return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-
-
-def reproject_point(lon, lat):
-    # Kindly borrowed from https://gis.stackexchange.com/questions/433825/interpolating-series-of-points-between-two-locations-using-python
-    # in_crs = CRS.from_epsg(4326)
-    # out_crs = CRS.from_epsg(2272)
-    # proj = Transformer.from_crs(in_crs, out_crs, always_xy=True)
-    # x, y = proj.transform(lon, lat)
-    # return x, y
-    ...
-
-
-def generate_random_points_on_line(number, line):
-    # Kindly borrowed from https://gis.stackexchange.com/questions/433825/interpolating-series-of-points-between-two-locations-using-python
-    points = []
-    while len(points) < number:
-        point = line.interpolate(uniform(0, line.length))
-        points.append(point)
-    return points
 
 
 def main():
@@ -283,7 +287,7 @@ def main():
         Log.info(
             f"Duration difference of {abs(there_duration-back_duration)/1000} s with first trip={there_duration/1000} s and back={back_duration/1000} s"
         )
-        dis = haversine(
+        dis = geodesic_distance(
             (there[0]["lat"], there[0]["lon"]), (back[-1]["lat"], back[-1]["lon"])
         )
         Log.info(f"Distance between initial points of {dis} meters")
@@ -443,7 +447,7 @@ def main():
         for back_point in back:
             diffs = []
             for there_point in there:
-                dis = haversine(
+                dis = geodesic_distance(
                     (there_point["lat"], there_point["lon"]),
                     (back_point["lat"], back_point["lon"]),
                 )
@@ -460,7 +464,7 @@ def main():
         for there_point in there:
             diffs = []
             for back_point in back:
-                dis = haversine(
+                dis = geodesic_distance(
                     (there_point["lat"], there_point["lon"]),
                     (back_point["lat"], back_point["lon"]),
                 )
