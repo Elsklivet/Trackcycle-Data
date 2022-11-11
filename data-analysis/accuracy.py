@@ -19,7 +19,7 @@ from geopandas import GeoDataFrame
 from matplotlib import pyplot as plt
 
 arg_parser = argparse.ArgumentParser(
-    description="Commit sensitivit analysis about the azimuth-trigger parameter for TrackCycle.",
+    description="Commit sensitivity analysis about the azimuth-trigger parameter for TrackCycle.",
     usage="python accuracy.py -t <input file path> -b <input file path> [-d <debug level: integer>]",
 )
 arg_parser.add_argument(
