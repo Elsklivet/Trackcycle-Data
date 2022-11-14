@@ -83,6 +83,25 @@ class Log:
 
     def info(msg: str):
         print(f"[ INFO ] {msg}")
+        
+def parse_line_strava(line: str):
+    # 0   1   2   3   4     5      6      7      8     9     10    11      12    13   14   15     16
+    # lat,lon,alt,acc,speed,accelx,accely,accelz,gyrox,gyroy,gyroz,azimuth,pitch,roll,time,batpct,current
+    vals = line.split(",")
+    ret = None
+    try:
+        ret = {
+            "lat": float(vals[2]),
+            "lon": float(vals[3]),
+            "ele": float(vals[0]),
+            "time": int(vals[1].split("T")[1].split(":")[0]),
+        }
+    except IndexError:
+        ret = {"lat": float(vals[0]), "lon": float(vals[1]), "ele": float(vals[0])}
+    finally:
+        if not ret:
+            raise Exception("Returned a none value from parse")
+        return ret
 
 
 def parse_line(line: str):
@@ -119,11 +138,20 @@ def read_and_parse(path: str, queue: multiprocessing.Queue, mode: str):
                 #  *  Any lines starting with "--" represent special markers for some of the other analyzers
                 #  *  The sensors collect several tens of times per second, and the GPS won't change in that time,
                 #     so we can significantly save on space (and make our calculations easier) by skipping repeats.
-                if idx == 0:
+                if idx == 0 and line.startswith("s"):
+                    isStrava = 1
+                    continue
+                elif idx == 0:
+                    continue
+                elif idx == 1 and isStrava == 1:
                     continue
                 elif line.startswith("--"):
                     continue
-                data = parse_line(line)
+
+                if isStrava == 1:
+                    data = parse_line_strava(line)
+                else:
+                    data = parse_line(line)
 
                 if data["lat"] == 0 and data["lon"] == 0:
                     continue
