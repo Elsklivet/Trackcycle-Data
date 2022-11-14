@@ -127,6 +127,7 @@ def parse_line(line: str):
 
 def read_and_parse(path: str, queue: multiprocessing.Queue, mode: str):
     start = time.time()
+    isStrava = 0
     Log.info(f"Begins processing '{path}'")
     lines = []
     try:
