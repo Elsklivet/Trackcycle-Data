@@ -329,7 +329,7 @@ def main():
         # First array is shorter
         idx = 0
         while idx < len(there):
-            current = there[idx]["curr"]
+            # current = there[idx]["curr"]
             curr_time = there[idx]["time"]
             next_time = None
             if idx + 1 < len(there):
@@ -368,7 +368,7 @@ def main():
                             "lon": point[1],
                             "azimuth": 0,
                             "time": curr_time + seconds * 1000,
-                            "curr": current,
+                            "curr": 0,
                         }
                         there.insert(idx + 1, inst)
                         idx += 1
